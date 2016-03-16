@@ -207,6 +207,7 @@ func rollDice(sides, count string) string {
 		}
 	}
 
+	sidesInt = mathutil.Between(sidesInt, 2, 10000000)
 	countInt = mathutil.Between(countInt, 1, MAX_ROLLS)
 
 	result := []string{}

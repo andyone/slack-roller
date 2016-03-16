@@ -15,6 +15,7 @@ import (
 	"pkg.re/essentialkaos/ek.v1/fsutil"
 	"pkg.re/essentialkaos/ek.v1/knf"
 	"pkg.re/essentialkaos/ek.v1/log"
+	"pkg.re/essentialkaos/ek.v1/mathutil"
 	"pkg.re/essentialkaos/ek.v1/rand"
 	"pkg.re/essentialkaos/ek.v1/usage"
 )
@@ -40,6 +41,8 @@ const (
 	ARG_HELP   = "h:help"
 	ARG_VER    = "v:version"
 )
+
+const MAX_ROLLS = 20
 
 // ////////////////////////////////////////////////////////////////////////////////// //
 
@@ -203,6 +206,8 @@ func rollDice(sides, count string) string {
 			countInt = ci
 		}
 	}
+
+	countInt = mathutil.Between(countInt, 1, MAX_ROLLS)
 
 	result := []string{}
 

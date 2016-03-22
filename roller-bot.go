@@ -7,7 +7,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"time"
 
 	"pkg.re/essentialkaos/slacker.v1"
 
@@ -164,7 +163,7 @@ func helloHandler() string {
 	return "Всем чмоке в этом чате!"
 }
 
-func commandHandler(command string, args []string) string {
+func commandHandler(command string, args []string) []string {
 	log.Debug("Got command: %s %s", command, strings.Join(args, " "))
 
 	switch command {

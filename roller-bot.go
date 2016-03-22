@@ -24,7 +24,7 @@ import (
 
 const (
 	APP     = "SlackRoller"
-	VERSION = "0.0.2"
+	VERSION = "0.0.3"
 )
 
 const (
@@ -149,9 +149,6 @@ func startBot() {
 		log.Crit(err.Error())
 		os.Exit(1)
 	}
-
-	// Sleep 10 years
-	time.Sleep(time.Hour * 24 * 365 * 10)
 }
 
 func errorHandler(err error) {
@@ -174,16 +171,16 @@ func commandHandler(command string, args []string) string {
 	case "roll", "брось", "бросить", "кинь":
 		wrongAttempts = 0
 		args = append(args, "", "")
-		return rollDice(args[0], args[1])
+		return []string{rollDice(args[0], args[1])}
 
 	default:
 		wrongAttempts++
 
 		if wrongAttempts > 3 {
-			return wrongMessages[rand.Int(len(wrongMessages)-1)]
+			return []string{wrongMessages[rand.Int(len(wrongMessages)-1)]}
 		}
 
-		return "Ничего не понял, напиши roll и я кину кубик."
+		return []string{"Ничего не понял, напиши roll и я кину кубик."}
 	}
 }
 

@@ -23,7 +23,7 @@ import (
 
 const (
 	APP     = "SlackRoller"
-	VERSION = "0.0.3"
+	VERSION = "0.1.0"
 )
 
 const (
@@ -166,11 +166,19 @@ func helloHandler() string {
 func commandHandler(command string, args []string) []string {
 	log.Debug("Got command: %s %s", command, strings.Join(args, " "))
 
-	switch command {
+	switch strings.ToLower(command) {
 	case "roll", "брось", "бросить", "кинь":
 		wrongAttempts = 0
 		args = append(args, "", "")
 		return []string{rollDice(args[0], args[1])}
+
+	case "random", "sample", "выбери":
+		wrongAttempts = 0
+		return []string{sample(args)}
+
+	case "help", "usage", "помощь", "помоги":
+		wrongAttempts = 0
+		return []string{getHelpContent()}
 
 	default:
 		wrongAttempts++
@@ -179,7 +187,7 @@ func commandHandler(command string, args []string) []string {
 			return []string{wrongMessages[rand.Int(len(wrongMessages)-1)]}
 		}
 
-		return []string{"Ничего не понял, напиши roll и я кину кубик."}
+		return []string{"Ничего не понял. Если на знаешь как мной пользоваться, просто напиши _help_."}
 	}
 }
 
@@ -213,6 +221,92 @@ func rollDice(sides, count string) string {
 	}
 
 	return fmt.Sprintf("Кубик брошен. Выпало %s.", strings.Join(result, ", "))
+}
+
+func sample(args []string) string {
+	if len(args) <= 1 {
+		return "Нужно больше вариантов для выбора."
+	}
+
+	samples := parseSamples(args)
+	samplesCount := len(samples)
+	selectedItem := rand.Int(samplesCount)
+
+	return fmt.Sprintf("Я выбрал *%s*.", samples[selectedItem])
+}
+
+func parseSamples(samples []string) []string {
+	var result []string
+
+	data := strings.Join(samples, " ")
+
+	var (
+		sample    string
+		waitQuote bool
+	)
+
+	for _, s := range data {
+		switch s {
+		case '"', '\'':
+			if !waitQuote {
+				waitQuote = true
+			} else {
+				result = append(result, sample)
+				sample, waitQuote = "", false
+			}
+
+		case ',', ' ':
+			if waitQuote {
+				sample += string(s)
+			} else {
+				result = append(result, sample)
+				sample = ""
+			}
+
+		default:
+			sample += string(s)
+		}
+	}
+
+	if sample != "" {
+		result = append(result, sample)
+	}
+
+	return normalizeSamples(result)
+}
+
+func normalizeSamples(samples []string) []string {
+	var result []string
+
+	for _, v := range samples {
+		item := strings.Replace(strings.TrimSpace(v), "\"", "", -1)
+
+		if item != "" {
+			result = append(result, item)
+		}
+	}
+
+	return result
+}
+
+func getHelpContent() string {
+	var content string
+
+	content += "*Команды:*\n"
+	content += "`roll` - Бросить кубик\n"
+	content += "`roll sides` - Бросить кубик с указанным количеством сторон\n"
+	content += "`roll sides count` - Бросить кубик с указанным количеством сторон, указанное количество раз\n"
+	content += "`sample samples...` - Выбрать один из данных вариантов\n"
+	content += "\n"
+	content += "*Примеры:*\n"
+	content += "`roll` _Просто бросить кубик_\n"
+	content += "`roll 12` _Бросить кубик с 12 сторонами_\n"
+	content += "`roll 12 5` _Бросить кубик с 12 сторонами 5 раз_\n"
+	content += "`sample Вася Петя Нина` _Выбрать один из трех вариантов_\n"
+	content += "`sample \"Вася П.\" \"Петя Г.\" \"Нина З.\"` _Выбрать один из трех вариантов состоящих из нескольких слов_\n"
+	content += "\n"
+
+	return content
 }
 
 // ////////////////////////////////////////////////////////////////////////////////// //

@@ -193,7 +193,7 @@ func unknownCommandHandler(user slacker.User, cmd string, args []string) string 
 }
 
 func rollCommandHandler(user slacker.User, args []string) []string {
-	log.Debug("Got roll command: %s → %s", strings.Join(args, " "))
+	log.Debug("Got roll command: %s → %s", user.RealName, strings.Join(args, " "))
 
 	wrongAttempts = 0
 
@@ -203,7 +203,7 @@ func rollCommandHandler(user slacker.User, args []string) []string {
 }
 
 func sampleCommandHandler(user slacker.User, args []string) []string {
-	log.Debug("Got sample command: %s → %s", strings.Join(args, " "))
+	log.Debug("Got sample command: %s → %s", user.RealName, strings.Join(args, " "))
 
 	wrongAttempts = 0
 
@@ -211,7 +211,7 @@ func sampleCommandHandler(user slacker.User, args []string) []string {
 }
 
 func helpCommandHandler(user slacker.User, args []string) []string {
-	log.Debug("Got help command: %s → %s", strings.Join(args, " "))
+	log.Debug("Got help command: %s → %s", user.RealName, strings.Join(args, " "))
 
 	wrongAttempts = 0
 

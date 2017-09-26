@@ -8,22 +8,23 @@ import (
 	"strconv"
 	"strings"
 
-	"pkg.re/essentialkaos/slacker.v1"
+	"pkg.re/essentialkaos/slacker.v4"
 
-	"pkg.re/essentialkaos/ek.v1/arg"
-	"pkg.re/essentialkaos/ek.v1/fsutil"
-	"pkg.re/essentialkaos/ek.v1/knf"
-	"pkg.re/essentialkaos/ek.v1/log"
-	"pkg.re/essentialkaos/ek.v1/mathutil"
-	"pkg.re/essentialkaos/ek.v1/rand"
-	"pkg.re/essentialkaos/ek.v1/usage"
+	"pkg.re/essentialkaos/ek.v9/fsutil"
+	"pkg.re/essentialkaos/ek.v9/knf"
+	"pkg.re/essentialkaos/ek.v9/log"
+	"pkg.re/essentialkaos/ek.v9/mathutil"
+	"pkg.re/essentialkaos/ek.v9/options"
+	"pkg.re/essentialkaos/ek.v9/rand"
+	"pkg.re/essentialkaos/ek.v9/strutil"
+	"pkg.re/essentialkaos/ek.v9/usage"
 )
 
 // ////////////////////////////////////////////////////////////////////////////////// //
 
 const (
 	APP     = "SlackRoller"
-	VERSION = "0.1.0"
+	VERSION = "0.2.0"
 )
 
 const (
@@ -36,24 +37,24 @@ const (
 )
 
 const (
-	ARG_CONFIG = "c:config"
-	ARG_HELP   = "h:help"
-	ARG_VER    = "v:version"
+	OPT_CONFIG = "c:config"
+	OPT_HELP   = "h:help"
+	OPT_VER    = "v:version"
 )
 
 const MAX_ROLLS = 20
 
 // ////////////////////////////////////////////////////////////////////////////////// //
 
-var argMap = arg.Map{
-	ARG_CONFIG: &arg.V{Value: "roller-bot.conf"},
-	ARG_HELP:   &arg.V{Type: arg.BOOL, Alias: "u:usage"},
-	ARG_VER:    &arg.V{Type: arg.BOOL, Alias: "ver"},
+var optMap = options.Map{
+	OPT_CONFIG: {Value: "roller-bot.conf"},
+	OPT_HELP:   {Type: options.BOOL, Alias: "u:usage"},
+	OPT_VER:    {Type: options.BOOL, Alias: "ver"},
 }
 
 var wrongAttempts = 0
 var wrongMessages = []string{
-	"_Ты тупой?_",
+	"_Бро, ты тупой?_",
 	"_Ну вот для кого я выше писал, как мной пользоваться?_",
 	"_Забей короче, ничего не скажу._",
 	"_Еще варианты? Не, реально попробуй, я подожду._",
@@ -64,7 +65,7 @@ var wrongMessages = []string{
 // ////////////////////////////////////////////////////////////////////////////////// //
 
 func main() {
-	_, errs := arg.Parse(argMap)
+	_, errs := options.Parse(optMap)
 
 	if len(errs) != 0 {
 		fmt.Println("Error while arguments parsing:")
@@ -76,12 +77,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	if arg.GetB(ARG_HELP) {
+	if options.GetB(OPT_HELP) {
 		showUsage()
 		return
 	}
 
-	if arg.GetB(ARG_VER) {
+	if options.GetB(OPT_VER) {
 		showAbout()
 		return
 	}
@@ -94,7 +95,7 @@ func main() {
 
 func loadConfig() {
 	var err error
-	var confPath = arg.GetS(ARG_CONFIG)
+	var confPath = options.GetS(OPT_CONFIG)
 
 	switch {
 	case !fsutil.IsExist(confPath):
@@ -139,8 +140,22 @@ func startBot() {
 	// Setup async handlers
 	bot.ConnectHandler = connectHandler
 	bot.HelloHandler = helloHandler
-	bot.CommandHandler = commandHandler
 	bot.ErrorHandler = errorHandler
+	bot.UnknownCommandHandler = unknownCommandHandler
+
+	bot.CommandHandlers = map[string]slacker.CommandHandler{
+		"roll":    rollCommandHandler,
+		"брось":   rollCommandHandler,
+		"бросить": rollCommandHandler,
+		"кинь":    rollCommandHandler,
+		"random":  sampleCommandHandler,
+		"sample":  sampleCommandHandler,
+		"выбери":  sampleCommandHandler,
+		"help":    helpCommandHandler,
+		"usage":   helpCommandHandler,
+		"помощь":  helpCommandHandler,
+		"помоги":  helpCommandHandler,
+	}
 
 	err := bot.Run()
 
@@ -149,6 +164,8 @@ func startBot() {
 		os.Exit(1)
 	}
 }
+
+// ////////////////////////////////////////////////////////////////////////////////// //
 
 func errorHandler(err error) {
 	log.Error("Got error from Slack API: %v", err)
@@ -160,36 +177,48 @@ func connectHandler() {
 
 func helloHandler() string {
 	log.Debug("Executed hello handler")
-	return "Всем чмоке в этом чате!"
+	return "Всем чмоке в этом чате! :kissing_closed_eyes:"
 }
 
-func commandHandler(command string, args []string) []string {
-	log.Debug("Got command: %s %s", command, strings.Join(args, " "))
+func unknownCommandHandler(user slacker.User, cmd string, args []string) string {
+	log.Debug("Got unknown command: %s → %s %s", user.RealName, cmd, strings.Join(args, " "))
 
-	switch strings.ToLower(command) {
-	case "roll", "брось", "бросить", "кинь":
-		wrongAttempts = 0
-		args = append(args, "", "")
-		return []string{rollDice(args[0], args[1])}
+	wrongAttempts++
 
-	case "random", "sample", "выбери":
-		wrongAttempts = 0
-		return []string{sample(args)}
-
-	case "help", "usage", "помощь", "помоги":
-		wrongAttempts = 0
-		return []string{getHelpContent()}
-
-	default:
-		wrongAttempts++
-
-		if wrongAttempts > 3 {
-			return []string{wrongMessages[rand.Int(len(wrongMessages)-1)]}
-		}
-
-		return []string{"Ничего не понял. Если на знаешь как мной пользоваться, просто напиши _help_."}
+	if wrongAttempts > 3 {
+		return wrongMessages[rand.Int(len(wrongMessages)-1)]
 	}
+
+	return "Ничего не понял. Если не знаешь как мной пользоваться, просто напиши _help_."
 }
+
+func rollCommandHandler(user slacker.User, args []string) []string {
+	log.Debug("Got roll command: %s → %s", strings.Join(args, " "))
+
+	wrongAttempts = 0
+
+	args = append(args, "", "")
+
+	return []string{rollDice(args[0], args[1])}
+}
+
+func sampleCommandHandler(user slacker.User, args []string) []string {
+	log.Debug("Got sample command: %s → %s", strings.Join(args, " "))
+
+	wrongAttempts = 0
+
+	return []string{sample(args)}
+}
+
+func helpCommandHandler(user slacker.User, args []string) []string {
+	log.Debug("Got help command: %s → %s", strings.Join(args, " "))
+
+	wrongAttempts = 0
+
+	return []string{getHelpContent()}
+}
+
+// ////////////////////////////////////////////////////////////////////////////////// //
 
 func rollDice(sides, count string) string {
 	sidesInt := 5
@@ -228,65 +257,11 @@ func sample(args []string) string {
 		return "Нужно больше вариантов для выбора."
 	}
 
-	samples := parseSamples(args)
+	samples := strutil.Fields(strings.Join(args, " "))
 	samplesCount := len(samples)
 	selectedItem := rand.Int(samplesCount)
 
 	return fmt.Sprintf("Я выбрал *%s*.", samples[selectedItem])
-}
-
-func parseSamples(samples []string) []string {
-	var result []string
-
-	data := strings.Join(samples, " ")
-
-	var (
-		sample    string
-		waitQuote bool
-	)
-
-	for _, s := range data {
-		switch s {
-		case '"', '\'':
-			if !waitQuote {
-				waitQuote = true
-			} else {
-				result = append(result, sample)
-				sample, waitQuote = "", false
-			}
-
-		case ',', ' ':
-			if waitQuote {
-				sample += string(s)
-			} else {
-				result = append(result, sample)
-				sample = ""
-			}
-
-		default:
-			sample += string(s)
-		}
-	}
-
-	if sample != "" {
-		result = append(result, sample)
-	}
-
-	return normalizeSamples(result)
-}
-
-func normalizeSamples(samples []string) []string {
-	var result []string
-
-	for _, v := range samples {
-		item := strings.Replace(strings.TrimSpace(v), "\"", "", -1)
-
-		if item != "" {
-			result = append(result, item)
-		}
-	}
-
-	return result
 }
 
 func getHelpContent() string {
@@ -314,9 +289,9 @@ func getHelpContent() string {
 func showUsage() {
 	info := usage.NewInfo("")
 
-	info.AddOption(ARG_CONFIG, "Path to config file", "file")
-	info.AddOption(ARG_HELP, "Show this help message")
-	info.AddOption(ARG_VER, "Show version")
+	info.AddOption(OPT_CONFIG, "Path to config file", "file")
+	info.AddOption(OPT_HELP, "Show this help message")
+	info.AddOption(OPT_VER, "Show version")
 
 	info.Render()
 }
